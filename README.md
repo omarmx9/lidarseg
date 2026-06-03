@@ -26,6 +26,8 @@ in [docs/05](docs/05_lidar_to_camera_projection.md).*
 | 4 | [docs/04_evaluation_miou.md](docs/04_evaluation_miou.md) | Why **mIoU**, not the 88 % point accuracy, is the metric that matters — with the one command to compute it. |
 | 5 | [docs/05_lidar_to_camera_projection.md](docs/05_lidar_to_camera_projection.md) | **How a 3D segmentation is drawn on a 2D photo**, bit by bit, with the projection math and a full image gallery. |
 | 6 | [docs/06_make_gif_from_video.md](docs/06_make_gif_from_video.md) | Turning a recorded clip into a README **GIF / embedded video**. |
+| 7 | [docs/07_sensor_geometry.md](docs/07_sensor_geometry.md) | **What the Velodyne actually sees** — the 64-beam vertical fan, vertical FOV, rings, sparsity-with-range, and LiDAR-as-a-2D-image. |
+| 8 | [docs/08_how_distance_works.md](docs/08_how_distance_works.md) | **How distance is measured** (time-of-flight), range→(x,y,z) math, and the dataset by the numbers (density vs range, the 64 beams in the data). |
 
 ---
 
@@ -48,6 +50,8 @@ lidarseg/
     ├── evaluate.py / evaluate.sh  per-class IoU + mIoU over the whole val split
     ├── visualize.py               GT / prediction / error PNGs + PLYs for one frame
     ├── project_to_camera.py       step-by-step 3D→2D overlay images (docs/images/)
+    ├── sensor_geometry.py         the 64-beam fan, vertical FOV, range image
+    ├── dataset_overview.py        time-of-flight + distance/density/beam stats
     └── make_gif.sh                video → optimized GIF for the README
 ```
 
@@ -116,21 +120,22 @@ python3 scripts/evaluate.py --config configs/cylinder3d_seq00_weighted.py \
 | Compute weights from data | `scripts/compute_class_weights.py` |
 | Recolor visualizations | `scripts/visualize.py` → `PALETTE` |
 | Regenerate the 3D→2D image gallery | `scripts/project_to_camera.py --frame NNNNNN` |
+| Regenerate sensor-geometry images | `scripts/sensor_geometry.py --frame NNNNNN` |
+| Regenerate distance/density/beam stats | `scripts/dataset_overview.py --frame NNNNNN` |
 | Turn a recorded clip into a README GIF | `scripts/make_gif.sh clip.mp4` |
 
 After editing a config, just re-run `make train` / `make eval` — no rebuild step.
 
 ---
 
-## 🎥 Live demo (video)
+## 🎥 Live demo
 
-> Placeholder — drop your recorded RViz2 clip here. Convert it with
-> `scripts/make_gif.sh ~/Videos/your_clip.mp4 docs/images/demo.gif`, then
-> uncomment:
->
-> `<!-- ![Live RViz2 segmentation demo](docs/images/demo.gif) -->`
->
-> See [docs/06](docs/06_make_gif_from_video.md) for GIF-vs-MP4 trade-offs.
+![Live RViz2 segmentation demo](docs/images/Autonomy.gif)
+
+*The `kitti_seg_sim` ROS 2 node replaying SemanticKITTI seq 00: live Cylinder3D
+inference → class-colored 3D point cloud (right) with the RAW | SEGMENTATION
+camera panel (left). Made from a screencast with
+`scripts/make_gif.sh` (see [docs/06](docs/06_make_gif_from_video.md)).*
 
 ---
 

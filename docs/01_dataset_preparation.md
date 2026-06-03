@@ -33,6 +33,12 @@ vision:
 measure of surface reflectivity (road paint, license plates and signs reflect
 strongly; matte/dark surfaces weakly). It is a real, useful signal.
 
+> **Want the sensor geometry in depth** — the 64-beam vertical fan, the ~32°
+> vertical field of view, why the data is "striped" and gets sparse far away, and
+> how to view a LiDAR scan as a 2D image? See
+> **[07_sensor_geometry.md](07_sensor_geometry.md)** (with measured numbers +
+> pictures).
+
 ---
 
 ## 2. The dataset: SemanticKITTI sequence 00
