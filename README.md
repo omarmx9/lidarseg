@@ -8,6 +8,12 @@ you **prepare data, train, weight classes, and evaluate**.
 > New to LiDAR data or this project? Read the docs in order — they assume a 2D
 > vision background and explain everything from the raw `.bin` up.
 
+![From 3D LiDAR segmentation to a 2D camera overlay](docs/images/pipeline.png)
+
+*Raw camera → ground-truth segmentation overlay → live model prediction
+(SemanticKITTI seq 00, frame 004000). How this is built is explained step by step
+in [docs/05](docs/05_lidar_to_camera_projection.md).*
+
 ---
 
 ## 📚 Documentation (read in order)
@@ -16,8 +22,10 @@ you **prepare data, train, weight classes, and evaluate**.
 |---|-----|---------|
 | 1 | [docs/01_dataset_preparation.md](docs/01_dataset_preparation.md) | What LiDAR data *is*, every file's datatype, the raw→19-class mapping, the pkl index, and the 80/20 split. |
 | 2 | [docs/02_model_and_training.md](docs/02_model_and_training.md) | Cylinder3D's architecture and **every training decision + why** (batch size, fp32, LR, schedule, the CE+Lovász loss). |
-| 3 | [docs/03_class_weighting.md](docs/03_class_weighting.md) | What class weighting is, **how to optimize one class alone**, and the data-driven helper. |
+| 3 | [docs/03_class_weighting.md](docs/03_class_weighting.md) | What class weighting is, **what `CLASS_WEIGHT[0]=5.0` actually means**, how to optimize one class alone, and the data-driven helper. |
 | 4 | [docs/04_evaluation_miou.md](docs/04_evaluation_miou.md) | Why **mIoU**, not the 88 % point accuracy, is the metric that matters — with the one command to compute it. |
+| 5 | [docs/05_lidar_to_camera_projection.md](docs/05_lidar_to_camera_projection.md) | **How a 3D segmentation is drawn on a 2D photo**, bit by bit, with the projection math and a full image gallery. |
+| 6 | [docs/06_make_gif_from_video.md](docs/06_make_gif_from_video.md) | Turning a recorded clip into a README **GIF / embedded video**. |
 
 ---
 
@@ -28,7 +36,7 @@ lidarseg/
 ├── README.md                      ← you are here
 ├── env.sh                         source first: CUDA 13.0 + project paths
 ├── Makefile                       make split | weights | train | resume | eval | viz
-├── docs/                          the four explainer docs above
+├── docs/                          the six explainer docs above (+ docs/images/)
 ├── configs/
 │   ├── cylinder3d_seq00.py        clean training config (inherits stock, ~4 overrides)
 │   └── cylinder3d_seq00_weighted.py   per-class-weighted variant (Task 2)
@@ -38,7 +46,9 @@ lidarseg/
     ├── train.py / train.sh        train (patch-safe Runner; no --cfg-options wall)
     ├── resume.sh                  resume the latest checkpoint
     ├── evaluate.py / evaluate.sh  per-class IoU + mIoU over the whole val split
-    └── visualize.py               GT / prediction / error PNGs + PLYs for one frame
+    ├── visualize.py               GT / prediction / error PNGs + PLYs for one frame
+    ├── project_to_camera.py       step-by-step 3D→2D overlay images (docs/images/)
+    └── make_gif.sh                video → optimized GIF for the README
 ```
 
 **Why this shape:** the old workflow was one giant `tools/train.py … --cfg-options
@@ -105,8 +115,22 @@ python3 scripts/evaluate.py --config configs/cylinder3d_seq00_weighted.py \
 | Re-make the seq-00 split | `scripts/split_seq00.py` (`--random`, `--train-frac`) |
 | Compute weights from data | `scripts/compute_class_weights.py` |
 | Recolor visualizations | `scripts/visualize.py` → `PALETTE` |
+| Regenerate the 3D→2D image gallery | `scripts/project_to_camera.py --frame NNNNNN` |
+| Turn a recorded clip into a README GIF | `scripts/make_gif.sh clip.mp4` |
 
 After editing a config, just re-run `make train` / `make eval` — no rebuild step.
+
+---
+
+## 🎥 Live demo (video)
+
+> Placeholder — drop your recorded RViz2 clip here. Convert it with
+> `scripts/make_gif.sh ~/Videos/your_clip.mp4 docs/images/demo.gif`, then
+> uncomment:
+>
+> `<!-- ![Live RViz2 segmentation demo](docs/images/demo.gif) -->`
+>
+> See [docs/06](docs/06_make_gif_from_video.md) for GIF-vs-MP4 trade-offs.
 
 ---
 

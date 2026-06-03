@@ -105,6 +105,88 @@ drop). Sweep a couple of values and compare IoU.
 
 ---
 
+## 3.5 "But `CLASS_WEIGHT[0] = 5.0` feels weird — what does the 5 even mean?"
+
+This is the part that trips everyone up, so let's be precise.
+
+### First: you are NOT replacing anything the model learned
+`class_weight` is **not** a weight *inside* the network (not a neuron, not a
+learned parameter). It's a **multiplier on the loss**. The network's millions of
+learned weights are untouched. All you change is **how loudly a mistake on that
+class complains** during training. Default = `1.0` for every class = "every
+class's mistakes count the same." `5.0` for car = "a mistake on a car point
+counts **5× as much** as a mistake on a default-weight point." That's the entire
+meaning. Nothing is overwritten; one class just shouts louder.
+
+### Why a bigger number is *logical*, not arbitrary: the loss is a SUM
+Training minimises the **total** loss, which is added up **over every point**:
+
+```
+total_loss = Σ_points  w_class(point) · ( −log p_correct(point) )
+```
+
+Because it's a sum, the classes with the **most points** automatically contribute
+the **most loss**, so gradient descent spends almost all its effort there. Put
+real-ish numbers on one batch:
+
+| class | # points | avg per-point loss | **total contribution** (w=1) |
+|-------|---------:|-------------------:|------------------------------:|
+| road  | 100,000  | 0.10               | **10,000** |
+| car   |   1,000  | 0.50 (it's bad at car) | **500** |
+
+Road contributes **20× more** to the total than car, purely because there are
+more road points — even though car is the class doing badly. The optimizer
+"hears" road 20× louder and barely bothers to fix car. **That imbalance is the
+problem**, and it comes from frequency, not from the model being lazy.
+
+Now apply `w_car = 5.0`:
+
+```
+car contribution = 1,000 × 0.50 × 5  = 2,500     (was 500)
+road contribution = 100,000 × 0.10 × 1 = 10,000  (unchanged)
+```
+
+Car went from 1/20th of road's voice to about 1/4. The optimizer now actually
+feels car errors and starts fixing them. **That's why raising the number is
+logical** — you're counter-acting a frequency imbalance that is itself just a
+multiplication, so you fight multiplication with multiplication.
+
+### Where does "5" come from, specifically?
+The *principled* weight is **inverse frequency**: make each class's total voice
+roughly equal by setting
+
+```
+w_c  ∝  1 / frequency_c          (rarer class → bigger weight)
+```
+
+In the table above, to make car exactly as loud as road you'd need
+`w_car = 100,000 / 1,000 = 100`. So why do we suggest **5**, not 100?
+
+- **Full inverse-frequency (100×) is usually too aggressive.** It makes the model
+  so terrified of missing a car that it stamps "car" on every vaguely car-shaped
+  blob → recall shoots up but **precision collapses** (tons of false positives),
+  and the rare-class gradients get so large that training wobbles.
+- So in practice you pick a **gentler, partial** weight — a 3–8× nudge that gives
+  the weak class a real say without letting it dominate. `5.0` is a sensible
+  midpoint to *start* from, then you tune up/down by watching **per-class IoU**.
+
+Think of it as a **volume knob**, not a switch: `1.0` = normal volume, `5.0` =
+5× louder, `100` = deafening (and distorted). You're choosing how much to boost a
+quiet instrument so you can hear it in the mix — not rewriting the song.
+
+### Equivalent intuitions (same idea, different words)
+- **Gradient view:** weighted CE multiplies the *gradient* from each car point by
+  5, so each car point pushes the weights 5× harder per step.
+- **Resampling view:** `w_car = 5` behaves a lot like *duplicating every car
+  point 5 times* in the data — same effect on the sum, without touching the files.
+
+So `CLASS_WEIGHT[0] = 5.0` reads as: **"treat each car point as if it were 5
+points, because cars are out-numbered ~100:1 by road and I want the model to stop
+ignoring them — but only a partial 5× boost so I don't make it hallucinate cars
+everywhere."** Not weird at all once you see the loss is a sum.
+
+---
+
 ## 4. Weighting ALL classes at once (data-driven)
 
 If instead you want to lift *all* the weak classes together, don't guess —
