@@ -1,4 +1,4 @@
-# lidarseg — 3D LiDAR Semantic Segmentation, end to end
+# lidarseg — 3D LiDAR Semantic Segmentation
 
 A complete LiDAR semantic-segmentation project on **SemanticKITTI**, from raw
 `.bin` scans to a **live RViz2 demo running the model online** — in one repo.
@@ -11,8 +11,10 @@ Two halves that used to live apart, now under one roof:
    and runs the trained model **per frame**, publishing a class-colored point
    cloud and a `RAW | SEGMENTATION` camera panel for RViz2.
 
-> New to LiDAR data or this project? Read the docs in order — they assume a 2D
-> vision background and explain everything from the raw `.bin` up.
+> New to LiDAR data or this project? The [docs](#-documentation) are written as a
+> question-answering reference — each one is organized around the questions a
+> reader actually asks, from the raw `.bin` up. Jump to whichever question you
+> have, or read straight through.
 
 ![Live RViz2 segmentation demo](docs/images/Autonomy.gif)
 
@@ -48,20 +50,29 @@ The same checkpoint feeds both the **offline mIoU evaluation** and the **online
 RViz2 demo** — the number you report and the thing you can watch run are the same
 model.
 
+### Status at a glance
+
+| | |
+|---|---|
+| **Data** | SemanticKITTI seq 00 · 4541 scans · contiguous 3632 / 909 train-val split |
+| **Model** | Cylinder3D (cylindrical sparse U-Net), fp32, trained on one 8 GB GPU |
+| **Checkpoint** | `epoch_5.pth` — a deliberate early stop; ~88 % point accuracy, big classes near-perfect, small/rare classes still weak (the motivation for [docs/03](docs/03_weighting_and_evaluation.md)) |
+| **Live demo** | `sim/` runs the model **online** in RViz2 at ~3.6 fps (live inference) / ~7.5 fps (GT colors) |
+| **Honest scope** | a working end-to-end *prototype*, not a leaderboard entry — val is the tail of seq 00, so mIoU compares **your own** runs, not the public benchmark |
+
 ---
 
-## 📚 Documentation (read in order)
+## 📚 Documentation
 
-| # | Doc | Answers |
+Three deep references, each organized around the questions a reader actually asks
+and verified against the code and the data on disk. Read straight through, or jump
+to a question.
+
+| # | Doc | Questions it answers |
 |---|-----|---------|
-| 1 | [docs/01_dataset_preparation.md](docs/01_dataset_preparation.md) | What LiDAR data *is*, every file's datatype, the raw→19-class mapping, the pkl index, and the 80/20 split. |
-| 2 | [docs/02_model_and_training.md](docs/02_model_and_training.md) | Cylinder3D's architecture and **every training decision + why** (batch size, fp32, LR, schedule, the CE+Lovász loss). |
-| 3 | [docs/03_class_weighting.md](docs/03_class_weighting.md) | What class weighting is, **what `CLASS_WEIGHT[0]=5.0` actually means**, how to optimize one class alone, and the data-driven helper. |
-| 4 | [docs/04_evaluation_miou.md](docs/04_evaluation_miou.md) | Why **mIoU**, not the 88 % point accuracy, is the metric that matters — with the one command to compute it. |
-| 5 | [docs/05_lidar_to_camera_projection.md](docs/05_lidar_to_camera_projection.md) | **How a 3D segmentation is drawn on a 2D photo**, bit by bit, with the projection math and a full image gallery. |
-| 6 | [docs/06_make_gif_from_video.md](docs/06_make_gif_from_video.md) | Turning a recorded clip into a README **GIF / embedded video**. |
-| 7 | [docs/07_sensor_geometry.md](docs/07_sensor_geometry.md) | **What the Velodyne actually sees** — the 64-beam vertical fan, vertical FOV, rings, sparsity-with-range, and LiDAR-as-a-2D-image. |
-| 8 | [docs/08_how_distance_works.md](docs/08_how_distance_works.md) | **How distance is measured** (time-of-flight), range→(x,y,z) math, and the dataset by the numbers (density vs range, the 64 beams in the data). |
+| 1 | [docs/01_data_and_sensor.md](docs/01_data_and_sensor.md) | What *is* LiDAR data vs a 2D image? How does the 64-beam Velodyne measure distance (time-of-flight → x,y,z)? Why is a scan striped and sparse far away? What's in each file (datatypes), how do 28 raw ids become 19 classes, and why a contiguous 80/20 split? **How is a 3D segmentation drawn on the 2D camera photo?** (full projection math + image gallery) |
+| 2 | [docs/02_model_and_training.md](docs/02_model_and_training.md) | Why Cylinder3D? How is the network wired (voxels → logits)? Why CE **+** Lovász? What changed for an 8 GB laptop, and why? What schedule runs and what did training achieve? |
+| 3 | [docs/03_weighting_and_evaluation.md](docs/03_weighting_and_evaluation.md) | Why is the 88 % accuracy misleading, and what are IoU / **mIoU**? How do I compute them? Then: how do I lift a weak class — tune **one class alone**, **what does `CLASS_WEIGHT[0]=5.0` actually mean**, and what are the traps? |
 
 ---
 
@@ -72,7 +83,7 @@ lidarseg/
 ├── README.md                      ← you are here (the one front door)
 ├── env.sh                         source first: CUDA 13.0 + project paths
 ├── Makefile                       split | weights | train | resume | eval | viz | sim-build | sim-run
-├── docs/                          the eight explainer docs above (+ docs/images/)
+├── docs/                          the three Q&A reference docs above (+ docs/images/)
 ├── configs/
 │   ├── cylinder3d_seq00.py        clean training config (inherits stock, ~4 overrides)
 │   └── cylinder3d_seq00_weighted.py   per-class-weighted variant
@@ -85,8 +96,7 @@ lidarseg/
 │   ├── visualize.py               GT / prediction / error PNGs + PLYs for one frame
 │   ├── project_to_camera.py       step-by-step 3D→2D overlay images (docs/images/)
 │   ├── sensor_geometry.py         the 64-beam fan, vertical FOV, range image
-│   ├── dataset_overview.py        time-of-flight + distance/density/beam stats
-│   └── make_gif.sh                video → optimized GIF for the README
+│   └── dataset_overview.py        time-of-flight + distance/density/beam stats
 └── sim/                           ── DEPLOY LIVE (ROS 2 Humble) ──
     └── src/kitti_seg_sim/         ament_python package: live inference node
         ├── launch/sim.launch.py   node + optional RViz, all params exposed
@@ -240,7 +250,6 @@ camera looks forward, the LiDAR is 360°, so the overlay covers the front only.
 | Use a newer checkpoint in the live demo | launch arg `model_checkpoint:=…` |
 | Change the live overlay look (size, blend) | `sim/.../projection.py` → `make_overlay` |
 | Adjust the RViz layout | `sim/.../config/kitti_seg.rviz` |
-| Turn a recorded clip into a README GIF | `scripts/make_gif.sh clip.mp4` |
 
 After editing a config, just re-run `make train` / `make eval` — no rebuild. After
 editing Python in `sim/`, no rebuild is needed if you built with
@@ -258,7 +267,8 @@ editing Python in `sim/`, no rebuild is needed if you built with
 - **`colcon build` errors on `setup.py install`** → `pip install "setuptools<80"`.
 - **Cloud is one solid color in RViz** → set PointCloud2 *Color Transformer* to **RGB8**.
 - **Our val = tail of seq 00**, not the official seq-08 benchmark — mIoU here is
-  for comparing *your own* runs, not the public leaderboard (see doc 4 §6).
+  for comparing *your own* runs, not the public leaderboard (see
+  [docs/03](docs/03_weighting_and_evaluation.md)).
 
 ---
 
