@@ -1,0 +1,81 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /PointCloud2
+      SplitterRatio: 0.5
+    Help Height: 0
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Color: 80; 80; 80
+      Cell Size: 5
+      Plane Cell Count: 40
+      Reference Frame: velodyne
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: true
+      Show Names: true
+      Marker Scale: 2
+    - Class: rviz_default_plugins/PointCloud2
+      Name: PointCloud2
+      Enabled: true
+      Topic:
+        Value: /kitti/points
+        Depth: 5
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+      Style: Points
+      Size (Pixels): 2
+      Color Transformer: RGB8
+      Decay Time: 0
+      Position Transformer: XYZ
+      Use rainbow: false
+    - Class: rviz_default_plugins/Image
+      Name: CameraCompare
+      Enabled: true
+      Topic:
+        Value: /kitti/camera/compare
+        Depth: 5
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+      Max Value: 1
+      Min Value: 0
+      Median window: 5
+      Normalize Range: true
+  Global Options:
+    Background Color: 13; 13; 20
+    Fixed Frame: velodyne
+    Frame Rate: 30
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Name: Current View
+      Distance: 45
+      Pitch: 0.65
+      Yaw: 3.14
+      Focal Point:
+        X: 5
+        Y: 0
+        Z: 0
+      Target Frame: velodyne
+Window Geometry:
+  Displays:
+    collapsed: false
+  Views:
+    collapsed: false
+  CameraCompare:
+    collapsed: false
+  Height: 900
+  Width: 1600
+  QMainWindow State: ""

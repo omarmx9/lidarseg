@@ -1,18 +1,52 @@
-# lidarseg — Cylinder3D on SemanticKITTI (training & data project)
+# lidarseg — 3D LiDAR Semantic Segmentation, end to end
 
-The **training / dataset side** of the 3D LiDAR semantic-segmentation project,
-restructured for easy edits and follow-ups. The live RViz2 demo lives separately
-in the ROS 2 package `~/Autonomy/ros2_ws/src/kitti_seg_sim/`; this repo is where
-you **prepare data, train, weight classes, and evaluate**.
+A complete LiDAR semantic-segmentation project on **SemanticKITTI**, from raw
+`.bin` scans to a **live RViz2 demo running the model online** — in one repo.
+
+Two halves that used to live apart, now under one roof:
+
+1. **Train & evaluate** (`scripts/`, `configs/`, `docs/`) — prepare the data,
+   train **Cylinder3D**, weight the classes, and measure real **mIoU**.
+2. **Deploy live** (`sim/`) — a **ROS 2 (Humble)** node that replays a sequence
+   and runs the trained model **per frame**, publishing a class-colored point
+   cloud and a `RAW | SEGMENTATION` camera panel for RViz2.
 
 > New to LiDAR data or this project? Read the docs in order — they assume a 2D
 > vision background and explain everything from the raw `.bin` up.
 
-![From 3D LiDAR segmentation to a 2D camera overlay](docs/images/pipeline.png)
+![Live RViz2 segmentation demo](docs/images/Autonomy.gif)
 
-*Raw camera → ground-truth segmentation overlay → live model prediction
-(SemanticKITTI seq 00, frame 004000). How this is built is explained step by step
-in [docs/05](docs/05_lidar_to_camera_projection.md).*
+*The `sim/` ROS 2 node replaying SemanticKITTI seq 00: live Cylinder3D inference →
+class-colored 3D point cloud (right) with the RAW | SEGMENTATION camera panel
+(left). The model infers each frame as it plays — genuine online perception, not
+a recording.*
+
+---
+
+## End-to-end pipeline
+
+```mermaid
+flowchart LR
+    BIN[".bin scans<br/>+ labels"]:::blue --> SPLIT["split_seq00.py<br/>seq-00 · 80/20"]:::orange
+    SPLIT --> TRAIN["train.py<br/>Cylinder3D (fp32)"]:::orange
+    TRAIN --> CK["checkpoint<br/>epoch_N.pth"]:::green
+    CK --> EVAL["evaluate.py<br/>per-class IoU · mIoU"]:::pink
+    CK --> SIM["sim/ player_node<br/>live inference"]:::purple
+    BIN --> SIM
+    SIM --> RVIZ["RViz2<br/>cloud + RAW│SEG camera"]:::cyan
+    CK --> PROJ["project_to_camera.py<br/>3D→2D overlay gallery"]:::pink
+
+    classDef blue   fill:#2196F3,color:#fff,stroke-width:0
+    classDef orange fill:#FF9800,color:#fff,stroke-width:0
+    classDef green  fill:#4CAF50,color:#fff,stroke-width:0
+    classDef pink   fill:#E91E63,color:#fff,stroke-width:0
+    classDef purple fill:#9C27B0,color:#fff,stroke-width:0
+    classDef cyan   fill:#00BCD4,color:#fff,stroke-width:0
+```
+
+The same checkpoint feeds both the **offline mIoU evaluation** and the **online
+RViz2 demo** — the number you report and the thing you can watch run are the same
+model.
 
 ---
 
@@ -35,48 +69,66 @@ in [docs/05](docs/05_lidar_to_camera_projection.md).*
 
 ```
 lidarseg/
-├── README.md                      ← you are here
+├── README.md                      ← you are here (the one front door)
 ├── env.sh                         source first: CUDA 13.0 + project paths
-├── Makefile                       make split | weights | train | resume | eval | viz
-├── docs/                          the six explainer docs above (+ docs/images/)
+├── Makefile                       split | weights | train | resume | eval | viz | sim-build | sim-run
+├── docs/                          the eight explainer docs above (+ docs/images/)
 ├── configs/
 │   ├── cylinder3d_seq00.py        clean training config (inherits stock, ~4 overrides)
-│   └── cylinder3d_seq00_weighted.py   per-class-weighted variant (Task 2)
-└── scripts/
-    ├── split_seq00.py             filter full infos → seq00, 80/20 split (verified reproducible)
-    ├── compute_class_weights.py   scan labels → ready-to-paste class_weight vector
-    ├── train.py / train.sh        train (patch-safe Runner; no --cfg-options wall)
-    ├── resume.sh                  resume the latest checkpoint
-    ├── evaluate.py / evaluate.sh  per-class IoU + mIoU over the whole val split
-    ├── visualize.py               GT / prediction / error PNGs + PLYs for one frame
-    ├── project_to_camera.py       step-by-step 3D→2D overlay images (docs/images/)
-    ├── sensor_geometry.py         the 64-beam fan, vertical FOV, range image
-    ├── dataset_overview.py        time-of-flight + distance/density/beam stats
-    └── make_gif.sh                video → optimized GIF for the README
+│   └── cylinder3d_seq00_weighted.py   per-class-weighted variant
+├── scripts/                       ── TRAIN & EVALUATE ──
+│   ├── split_seq00.py             filter full infos → seq00, 80/20 split (reproducible)
+│   ├── compute_class_weights.py   scan labels → ready-to-paste class_weight vector
+│   ├── train.py / train.sh        train (patch-safe Runner; no --cfg-options wall)
+│   ├── resume.sh                  resume the latest checkpoint
+│   ├── evaluate.py / evaluate.sh  per-class IoU + mIoU over the whole val split
+│   ├── visualize.py               GT / prediction / error PNGs + PLYs for one frame
+│   ├── project_to_camera.py       step-by-step 3D→2D overlay images (docs/images/)
+│   ├── sensor_geometry.py         the 64-beam fan, vertical FOV, range image
+│   ├── dataset_overview.py        time-of-flight + distance/density/beam stats
+│   └── make_gif.sh                video → optimized GIF for the README
+└── sim/                           ── DEPLOY LIVE (ROS 2 Humble) ──
+    └── src/kitti_seg_sim/         ament_python package: live inference node
+        ├── launch/sim.launch.py   node + optional RViz, all params exposed
+        ├── config/kitti_seg.rviz  RViz2 layout: cloud view + compare camera panel
+        └── kitti_seg_sim/
+            ├── player_node.py     the node: params, publishers, timer loop
+            ├── inference.py       SegModel — load checkpoint, predict per scan
+            ├── projection.py      project points → image, build overlay/compare
+            ├── pointcloud.py      numpy → PointCloud2 (xyz + packed rgb)
+            ├── calib.py           parse calib.txt (P2, Tr) + rot→quat
+            └── colormap.py        19-class names, palette, raw→learning LUT
 ```
 
-**Why this shape:** the old workflow was one giant `tools/train.py … --cfg-options
-<12 lines>` command plus loose scripts. Now every knob lives in a named config,
-each task is one `make` target, and the four docs explain the *why*. The heavy
-lifting still uses the installed `mmdetection3d`; this project is the clean front
-door to it.
+**Why this shape:** every training knob lives in a named config, each task is one
+`make` target, and the docs explain the *why*. The heavy lifting still uses the
+installed `mmdetection3d`; this project is the clean front door to it — now
+including the live-deployment half.
 
 ---
 
 ## ⚙️ Prerequisites (already set up on this machine)
 
+**Training / evaluation**
 - PyTorch 2.12.0+cu130, **CUDA toolkit 13.0** (`CUDA_HOME=/usr/local/cuda-13.0`)
 - mmdet3d 1.4.0 · mmcv 2.1.0 · mmdet 3.3.0 · spconv-cu120 · `numpy<2`
 - Data at `~/Autonomy/semantickitti/dataset/sequences/00/`
 - Baseline checkpoint at
   `~/Autonomy/mmdetection3d/work_dirs/cylinder3d_4xb4-3x_semantickitti/epoch_5.pth`
 
+**Live demo (`sim/`)**
+- **ROS 2 Humble** (`rclpy`, `sensor_msgs`, `cv_bridge`, `tf2_ros`, `rviz2`)
+- Same `torch` + `mmdet3d` stack as above, plus `open3d`, `opencv-python`
+- **`setuptools < 80`** so `colcon build` works (≥80 removed `setup.py install`)
+- Sequence at `~/Autonomy/semantickitti/dataset/sequences/00/` with
+  `velodyne/`, `labels/`, `image_2/`, and `calib.txt`
+
 See the repo-root `PROGRESS.md` for how that environment was built (it was not
 trivial).
 
 ---
 
-## 🚀 Quickstart
+## 🚀 Quickstart — train & evaluate
 
 ```bash
 cd ~/Autonomy/lidarseg
@@ -95,17 +147,83 @@ make eval
 make viz
 ```
 
-### Class-weighting experiment (Task 2)
+### Class-weighting experiment
 ```bash
-# 1. get data-driven weights (optional)
-make weights
-# 2. paste into configs/cylinder3d_seq00_weighted.py  (or just bump one class)
-# 3. warm-start train the weighted variant
-python3 scripts/train.py --config configs/cylinder3d_seq00_weighted.py
-# 4. compare mIoU vs baseline
+make weights                       # data-driven per-class weights (optional)
+# paste into configs/cylinder3d_seq00_weighted.py (or bump one class), then:
+python3 scripts/train.py    --config configs/cylinder3d_seq00_weighted.py
 python3 scripts/evaluate.py --config configs/cylinder3d_seq00_weighted.py \
         --checkpoint ~/Autonomy/mmdetection3d/work_dirs/cylinder3d_seq00_weighted/epoch_5.pth
 ```
+
+---
+
+## 🤖 Live perception — the `sim/` ROS 2 node
+
+`sim/` is a self-contained colcon workspace holding one `ament_python` package,
+`kitti_seg_sim`. It streams a SemanticKITTI sequence frame-by-frame, runs the
+trained **Cylinder3D** model **live** on each scan, and publishes everything RViz2
+needs: a class-colored point cloud, the raw camera image, and a
+segmentation-overlaid camera view — side by side.
+
+### Build
+
+```bash
+cd ~/Autonomy/lidarseg/sim
+source /opt/ros/humble/setup.bash
+colcon build --packages-select kitti_seg_sim   # or: make sim-build (from repo root)
+source install/setup.bash
+```
+
+### Run
+
+```bash
+# live model predictions + RViz (default)
+ros2 launch kitti_seg_sim sim.launch.py            # or: make sim-run
+
+# ground-truth colors (no model, ~7.5 fps), faster
+ros2 launch kitti_seg_sim sim.launch.py color_source:=gt   # or: make sim-gt
+
+# start on the validation split, no RViz (topics only)
+ros2 launch kitti_seg_sim sim.launch.py start_frame:=3633 rviz:=false
+```
+
+In RViz the camera panel shows **RAW | SEGMENTATION**; the 3D view shows the
+class-colored cloud. Fixed frame is `velodyne`; the PointCloud2 *Color
+Transformer* is **RGB8**.
+
+### Published topics
+
+| Topic | Type | Description |
+|-------|------|-------------|
+| `/kitti/points` | `sensor_msgs/PointCloud2` | xyz + packed `rgb`, frame `velodyne`, colored by class |
+| `/kitti/camera/image` | `sensor_msgs/Image` | raw left color camera, `bgr8`, frame `camera` |
+| `/kitti/camera/overlay` | `sensor_msgs/Image` | segmentation projected onto the image |
+| `/kitti/camera/compare` | `sensor_msgs/Image` | **RAW \| SEGMENTATION** side by side (RViz panel) |
+| `/kitti/camera/info` | `sensor_msgs/CameraInfo` | intrinsics from calib `P2` |
+| `/tf_static` | — | `velodyne → camera` from calib `Tr` |
+
+### Key parameters
+
+| Parameter | Default | Meaning |
+|-----------|---------|---------|
+| `color_source` | `pred` | `pred` = run model · `gt` = ground-truth labels |
+| `rate_hz` | `10.0` | target playback rate (inference may cap it lower) |
+| `start_frame` / `end_frame` | `0` / `-1` | frame index range (`-1` = last available) |
+| `loop` | `true` | restart at the end |
+| `data_root` | seq 00 path | dataset sequence directory |
+| `model_checkpoint` | `epoch_5.pth` | checkpoint to load |
+| `device` | `cuda:0` | inference device |
+
+### Performance
+
+| Mode | Rate | VRAM |
+|------|------|------|
+| `gt` (labels) | ~7.5 fps | — |
+| `pred` (live inference) | ~3.6 fps (model loads ~6 s once) | ~3 GB |
+
+Only ~18.9k of the ~124k points per scan land in the forward camera FOV — the
+camera looks forward, the LiDAR is 360°, so the overlay covers the front only.
 
 ---
 
@@ -117,25 +235,16 @@ python3 scripts/evaluate.py --config configs/cylinder3d_seq00_weighted.py \
 | Change batch size / workers | `configs/cylinder3d_seq00.py` → `train_dataloader` |
 | Tune class weights (one or all) | `configs/cylinder3d_seq00_weighted.py` → `CLASS_WEIGHT` |
 | Re-make the seq-00 split | `scripts/split_seq00.py` (`--random`, `--train-frac`) |
-| Compute weights from data | `scripts/compute_class_weights.py` |
-| Recolor visualizations | `scripts/visualize.py` → `PALETTE` |
+| Recolor visualizations / live cloud | `scripts/visualize.py` → `PALETTE`, `sim/.../colormap.py` → `PALETTE` |
 | Regenerate the 3D→2D image gallery | `scripts/project_to_camera.py --frame NNNNNN` |
-| Regenerate sensor-geometry images | `scripts/sensor_geometry.py --frame NNNNNN` |
-| Regenerate distance/density/beam stats | `scripts/dataset_overview.py --frame NNNNNN` |
+| Use a newer checkpoint in the live demo | launch arg `model_checkpoint:=…` |
+| Change the live overlay look (size, blend) | `sim/.../projection.py` → `make_overlay` |
+| Adjust the RViz layout | `sim/.../config/kitti_seg.rviz` |
 | Turn a recorded clip into a README GIF | `scripts/make_gif.sh clip.mp4` |
 
-After editing a config, just re-run `make train` / `make eval` — no rebuild step.
-
----
-
-## 🎥 Live demo
-
-![Live RViz2 segmentation demo](docs/images/Autonomy.gif)
-
-*The `kitti_seg_sim` ROS 2 node replaying SemanticKITTI seq 00: live Cylinder3D
-inference → class-colored 3D point cloud (right) with the RAW | SEGMENTATION
-camera panel (left). Made from a screencast with
-`scripts/make_gif.sh` (see [docs/06](docs/06_make_gif_from_video.md)).*
+After editing a config, just re-run `make train` / `make eval` — no rebuild. After
+editing Python in `sim/`, no rebuild is needed if you built with
+`colcon build --symlink-install`; otherwise re-run the build.
 
 ---
 
@@ -144,7 +253,15 @@ camera panel (left). Made from a screencast with
 - **fp32 only.** Cylinder3D + AMP/fp16 crashes (spconv `feats_reduce_kernel`
   has no Half kernel). The config stays fp32 on purpose.
 - **`weights_only` checkpoints.** Our checkpoints embed an mmengine `ConfigDict`;
-  `train.py`/`evaluate.py` patch `torch.load(weights_only=False)` so loading
+  `train.py`/`evaluate.py`/`sim` patch `torch.load(weights_only=False)` so loading
   works under PyTorch ≥2.6. Don't remove that patch.
+- **`colcon build` errors on `setup.py install`** → `pip install "setuptools<80"`.
+- **Cloud is one solid color in RViz** → set PointCloud2 *Color Transformer* to **RGB8**.
 - **Our val = tail of seq 00**, not the official seq-08 benchmark — mIoU here is
   for comparing *your own* runs, not the public leaderboard (see doc 4 §6).
+
+---
+
+## License
+
+MIT. SemanticKITTI / KITTI data are CC BY-NC-SA — cite the original authors.

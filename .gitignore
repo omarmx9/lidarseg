@@ -1,3 +1,25 @@
 */__pycache__
+__pycache__/
+*.pyc
 
+# helper kept local, not part of the showcase
 scripts/make_gif.sh
+
+# ── ROS 2 / colcon build artifacts (sim/) ──
+sim/build/
+sim/install/
+sim/log/
+
+# ── hide unneeded sub-READMEs: the root README is the single front door ──
+sim/README.md
+sim/src/README.md
+sim/src/kitti_seg_sim/README.md
+
+# duplicate of docs/images/Autonomy.gif (8.8 MB) — kept local for the package, not tracked
+sim/src/kitti_seg_sim/resource/Autonomy.gif
+
+# models, data, and generated outputs — too large / machine-specific for git
+work_dirs/
+*.pth
+*.ply
+data/
